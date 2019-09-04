@@ -52,7 +52,7 @@ namespace Data.EFCore.Writer.Field
         {
             return _context.FieldMappings.Where(mapping => mapping.VersionedMappings.Any(versionMapping =>
                 versionMapping.CommittedMappings.Any(committedMapping => (committedMapping.OutputMapping == name || committedMapping.InputMapping == name) &&
-                                                                         committedMapping.Releases.Select(release => release.Id)
+                                                                         committedMapping.Releases.Select(release => release.Release.Id)
                                                                              .Contains(releaseId))));
         }
 
@@ -61,7 +61,22 @@ namespace Data.EFCore.Writer.Field
             return _context.FieldMappings.Where(mapping => mapping.VersionedMappings.Any(versionMapping =>
                 versionMapping.CommittedMappings.Any(committedMapping => (committedMapping.OutputMapping == name || committedMapping.InputMapping == name) &&
                                                                          committedMapping.Releases
-                                                                             .Contains(release))));
+                                                                             .Any(r => r.Release == release))));
+        }
+
+        public async Task<FieldVersionedMapping> GetVersionedMapping(Guid id)
+        {
+            return await _context.FieldVersionedMappings.FirstOrDefaultAsync(mapping => mapping.Id == id);
+        }
+
+        public async Task<FieldProposalMappingEntry> GetProposal(Guid proposalEntry)
+        {
+            return await _context.FieldProposalMappingEntries.FirstOrDefaultAsync(mapping => mapping.Id == proposalEntry);
+        }
+
+        public async Task<FieldCommittedMappingEntry> GetCommittedEntry(Guid committedEntryId)
+        {
+            return await _context.FieldCommittedMappingEntries.FirstOrDefaultAsync(mapping => mapping.Id == committedEntryId);
         }
 
         public async Task<IQueryable<FieldMapping>> AsMappingQueryable()
@@ -91,6 +106,30 @@ namespace Data.EFCore.Writer.Field
         public async Task<IQueryable<FieldMapping>> GetByRelease(Release release)
         {
             return await this.GetByRelease(release.Id);
+        }
+
+        public async Task<IQueryable<FieldMapping>> GetByLatestVersion()
+        {
+            return await this.GetByVersion(await _context.GameVersions.OrderByDescending(release => release.CreatedOn)
+                .FirstOrDefaultAsync());
+        }
+
+        public async Task<IQueryable<FieldMapping>> GetByVersion(Guid versionId)
+        {
+            return _context.FieldMappings.Where(mapping =>
+                mapping.VersionedMappings.Any(versionedMapping => versionedMapping.GameVersion.Id == versionId));
+        }
+
+        public async Task<IQueryable<FieldMapping>> GetByVersion(string versionName)
+        {
+            return _context.FieldMappings.Where(mapping =>
+                mapping.VersionedMappings.Any(versionedMapping => versionedMapping.GameVersion.Name == versionName));
+        }
+
+        public async Task<IQueryable<FieldMapping>> GetByVersion(GameVersion version)
+        {
+            return _context.FieldMappings.Where(mapping =>
+                mapping.VersionedMappings.Any(versionedMapping => versionedMapping.GameVersion == version));
         }
 
         public async Task<IQueryable<FieldMapping>> GetByClassInLatestVersion(Guid classId)
@@ -160,6 +199,11 @@ namespace Data.EFCore.Writer.Field
         public async Task SaveChanges()
         {
             await _context.SaveChangesAsync();
+        }
+
+        public async Task AddProposal(FieldProposalMappingEntry proposalEntry)
+        {
+            await _context.FieldProposalMappingEntries.AddAsync(proposalEntry);
         }
     }
 }

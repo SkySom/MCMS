@@ -8,6 +8,7 @@ using Data.Core.Readers.Core;
 using Data.Core.Writers.Method;
 using Data.EFCore.Context;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 
 namespace Data.EFCore.Writer.Method
 {
@@ -56,6 +57,29 @@ namespace Data.EFCore.Writer.Method
             return await this.GetByRelease(release.Id);
         }
 
+        public async Task<IQueryable<MethodMapping>> GetByLatestVersion()
+        {
+            return await this.GetByVersion(await _context.GameVersions.OrderByDescending(release => release.CreatedOn)
+                .FirstOrDefaultAsync());
+        }
+
+        public async Task<IQueryable<MethodMapping>> GetByVersion(Guid versionId)
+        {
+            return _context.MethodMappings.Where(mapping =>
+                mapping.VersionedMappings.Any(versionedMapping => versionedMapping.GameVersion.Id == versionId));
+        }
+
+        public async Task<IQueryable<MethodMapping>> GetByVersion(string versionName)
+        {
+            return _context.MethodMappings.Where(mapping =>
+                mapping.VersionedMappings.Any(versionedMapping => versionedMapping.GameVersion.Name == versionName));
+        }
+
+        public async Task<IQueryable<MethodMapping>> GetByVersion(GameVersion version)
+        {
+            return _context.MethodMappings.Where(mapping =>
+                mapping.VersionedMappings.Any(versionedMapping => versionedMapping.GameVersion == version));
+        }
 
         public async Task<IQueryable<MethodMapping>> GetByLatestMapping(string name)
         {
@@ -83,7 +107,7 @@ namespace Data.EFCore.Writer.Method
         {
             return _context.MethodMappings.Where(mapping => mapping.VersionedMappings.Any(versionMapping =>
                 versionMapping.CommittedMappings.Any(committedMapping => (committedMapping.OutputMapping == name || committedMapping.InputMapping == name) &&
-                                                                         committedMapping.Releases.Select(release => release.Id)
+                                                                         committedMapping.Releases.Select(release => release.Release.Id)
                                                                              .Contains(releaseId))));
         }
 
@@ -92,7 +116,22 @@ namespace Data.EFCore.Writer.Method
             return _context.MethodMappings.Where(mapping => mapping.VersionedMappings.Any(versionMapping =>
                 versionMapping.CommittedMappings.Any(committedMapping => (committedMapping.OutputMapping == name || committedMapping.InputMapping == name) &&
                                                                          committedMapping.Releases
-                                                                             .Contains(release))));
+                                                                             .Any(r => r.Release == release))));
+        }
+
+        public async Task<MethodVersionedMapping> GetVersionedMapping(Guid id)
+        {
+            return await _context.MethodVersionedMappings.FirstOrDefaultAsync(mapping => mapping.Id == id);
+        }
+
+        public async Task<MethodProposalMappingEntry> GetProposal(Guid proposalEntry)
+        {
+            return await _context.MethodProposalMappingEntries.FirstOrDefaultAsync(mapping => mapping.Id == proposalEntry);
+        }
+
+        public async Task<MethodCommittedMappingEntry> GetCommittedEntry(Guid committedEntryId)
+        {
+            return await _context.MethodCommittedMappingEntries.FirstOrDefaultAsync(mapping => mapping.Id == committedEntryId);
         }
 
         public async Task<IQueryable<MethodMapping>> GetByClassInLatestVersion(Guid classId)
@@ -164,5 +203,9 @@ namespace Data.EFCore.Writer.Method
             await _context.SaveChangesAsync();
         }
 
+        public async Task AddProposal(MethodProposalMappingEntry proposalEntry)
+        {
+            await _context.MethodProposalMappingEntries.AddAsync(proposalEntry);
+        }
     }
 }
